@@ -28,12 +28,13 @@ case "$ID $ID_LIKE" in
     $SUDO apt-get update
     echo "wireshark-common wireshark-common/install-setuid boolean false" | $SUDO debconf-set-selections
     $SUDO env DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
-      tshark python3 python3-venv python3-pip python3-dev python3-numpy python3-h5py \
-      gcc g++ pkg-config libhdf5-dev
+      tshark python3 python3-venv python3-pip python3-dev python3-numpy python3-h5py python3-lxml \
+      gcc g++ pkg-config libhdf5-dev libxml2-dev libxslt1-dev
     ;;
   *rhel*|*fedora*|*centos*)
     $SUDO dnf install -y wireshark-cli python3 python3-pip python3-devel gcc gcc-c++ pkgconf-pkg-config
-    $SUDO dnf install -y python3-numpy || true
+    # lxml (pyshark dependency) has no s390x wheel on PyPI — use the distro build
+    $SUDO dnf install -y python3-numpy python3-lxml libxml2-devel libxslt-devel || true
     # h5py / hdf5-devel live in EPEL on RHEL
     $SUDO dnf install -y python3-h5py hdf5-devel 2>/dev/null \
       || { $SUDO dnf install -y "https://dl.fedoraproject.org/pub/epel/epel-release-latest-${VERSION_ID%%.*}.noarch.rpm" \
@@ -41,7 +42,7 @@ case "$ID $ID_LIKE" in
     ;;
   *suse*|*sles*)
     $SUDO zypper --non-interactive install wireshark python3 python3-pip python3-devel gcc gcc-c++ pkg-config
-    $SUDO zypper --non-interactive install python3-numpy python3-h5py hdf5-devel || true
+    $SUDO zypper --non-interactive install python3-numpy python3-h5py python3-lxml hdf5-devel libxml2-devel libxslt-devel || true
     ;;
   *)
     echo "Unsupported distro '$ID' — install tshark, python3 (>=3.9), numpy and h5py manually." >&2
