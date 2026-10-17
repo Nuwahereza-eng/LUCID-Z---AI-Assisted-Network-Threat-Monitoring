@@ -1,0 +1,65 @@
+LUCID DDoS Dashboard – Quick Demo Guide
+
+Goal: Show live DDoS detection from packet data with simple charts and controls.
+
+What you see
+- Top bar: Start/Stop controls, choose source (PCAP file or network interface), model (.h5), and alert threshold.
+- Charts:
+  - DDoS Fraction: How many samples in the last window were flagged as attack (0 to 1).
+  - Flow Density: Number of active flows in the window.
+  - Unique Destination Ports: Count of different destination ports seen.
+  - Source IP Diversity: Count of different source IPs seen.
+- Status panel: Packets, samples, latency, and whether an alert is active.
+- Mitigation panel: Simulate blocking noisy source IPs.
+- Accuracy panel (optional): Shows TPR, FPR, TTD when labels are available (from known datasets or an override).
+
+Before you start
+- Model: The app auto-finds the newest .h5 under the output/ folder, or you can pick one.
+- Source: Pick a PCAP file (easiest for demos) or a live interface (requires tshark).
+- Threshold: Default 0.5 is fine; move it to make alerts more or less sensitive.
+
+Start a quick demo (PCAP)
+1) Choose a PCAP file from sample-dataset/ (for example: CIC-DDoS-2019-UDPLag.pcap).
+2) Click Start. The app reads the file in time windows (e.g., 10 seconds).
+3) The charts update every window. You’ll see metrics and the DDoS fraction change over time.
+4) Click Stop to end.
+
+Live updates (what’s happening)
+- The app groups packets into flows, then into time windows.
+- A small CNN model scores each window and returns a fraction of “attack-like” samples.
+- We stream these results to the browser and keep a short history for the charts.
+
+Alerts & Threshold
+- If DDoS Fraction >= threshold, the window is considered “alerting.”
+- A little hysteresis is used so one noisy window doesn’t toggle alerts too fast.
+
+Mitigation (simulate blocking)
+- When alerts persist, the app lists likely source IPs.
+- You can block or unblock a source. Blocked sources are ignored in later windows (simulated blackhole/rate-limit).
+
+Accuracy & KPIs (optional)
+- If the dataset is known, or you choose an override (all_attack / all_benign),
+  the app can show: True Positive Rate (TPR), False Positive Rate (FPR), and Time To Detect (TTD).
+- Positive Rate shows overall fraction of predicted-positive samples so far.
+
+Forecast & Explain
+- Forecast: A simple trend (EWMA) that estimates the next DDoS fraction.
+- Explain: Highlights which traffic features deviated most from recent baseline (top z-scores).
+
+History
+- The app keeps a rolling list of recent windows so charts can scroll smoothly.
+
+Auth (if enabled)
+- You might see a login page. Enter the demo token to access the dashboard.
+- After login, the browser stores a cookie so API calls work without extra headers.
+
+Stop
+- Click Stop to safely end detection and release resources.
+
+Troubleshooting
+- “No samples” or instant completion with PCAP: tshark may be missing. Install tshark or use the hosted version that includes it.
+- “Model not found”: Put your .h5 under output/ or provide the path.
+- 401 Unauthorized: The demo token is required; log in on the /login page.
+- Live capture: You need tshark installed and permission for capture. PCAP files are easiest for demos.
+
+That’s it! Start a PCAP, watch the charts, and try blocking a noisy source to see the effect in the next windows.
