@@ -23,7 +23,10 @@ if REPO_ROOT not in sys.path:
 
 import numpy as np
 import pyshark
-from tensorflow.keras.models import load_model
+try:
+    from tensorflow.keras.models import load_model
+except ImportError:
+    load_model = None
 from sklearn.metrics import accuracy_score, f1_score, confusion_matrix
 
 from util_functions import static_min_max, normalize_and_padding, count_packets_in_dataset
@@ -327,8 +330,13 @@ class DetectorService:
             self.time_window = 10
             self.max_flow_len = 10
 
-        logger.info(f"Loading model: {resolved_model_path}")
-        self.model = load_model(resolved_model_path)
+        logger.info(f"Resolving model: {resolved_model_path}")
+        if load_model is not None:
+            self.model = load_model(resolved_model_path)
+            logger.info("TensorFlow model loaded successfully.")
+        else:
+            self.model = None
+            logger.warning("TensorFlow not installed. Local inference disabled; using IBM ML for z/OS or fallback.")
         self.model_info = {
             "path": resolved_model_path,
             "time_window": self.time_window,
@@ -614,9 +622,15 @@ class DetectorService:
                     y_pred = np.array(zml_result["predictions"], dtype=bool)
                     latency = zml_result["latency_sec"]
                     scoring_engine = "ibmzml"
-                else:
+                elif self.model is not None:
                     y_pred = np.squeeze(self.model.predict(X, batch_size=2048) > 0.5, axis=1)
                     latency = time.time() - t0
+                else:
+                    # Neither z/OS ML nor local TensorFlow available
+                    logger.warning("No inference engine available (z/OS ML not configured and TensorFlow not installed). Defaulting to benign.")
+                    y_pred = np.zeros(X.shape[0], dtype=bool)
+                    latency = time.time() - t0
+                    scoring_engine = "none"
                 # -----------------------------------------------------------------
                 if self._source_kind == "http":
                     packets = external_packets
