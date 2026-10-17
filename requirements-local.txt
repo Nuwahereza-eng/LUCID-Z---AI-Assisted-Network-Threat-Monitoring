@@ -1,0 +1,22 @@
+# Requirements for local development on Python 3.12
+# Use this when running locally: pip install -r requirements-local.txt
+
+# Web framework
+fastapi>=0.110.0,<0.120.0
+pydantic>=2.0.0,<3.0.0
+uvicorn[standard]>=0.29.0,<0.35.0
+python-multipart>=0.0.9
+
+# Numerics
+numpy>=1.26.0,<2.0.0
+h5py>=3.10.0,<4.0.0
+scikit-learn>=1.4.0,<2.0.0
+
+# Protobuf
+protobuf>=4.25.0,<6.0.0
+
+# Packet capture
+pyshark>=0.6
+
+# TensorFlow for Python 3.12
+tensorflow-cpu>=2.16.0,<2.19.0

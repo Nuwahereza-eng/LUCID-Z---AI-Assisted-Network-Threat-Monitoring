@@ -25,7 +25,7 @@ import random
 import hashlib
 import argparse
 import ipaddress
-from sklearn.feature_extraction.text import CountVectorizer
+from sk_compat import CountVectorizer
 from multiprocessing import Process, Manager, Value, Queue
 from util_functions import *
 

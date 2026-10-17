@@ -5,9 +5,9 @@ Detects at runtime whether the service is executing on IBM Z (s390x) hardware
 and exposes that information via /api/ibmz/status.
 
 Genuine IBM Z integration paths (no fabrication):
-  1. TensorFlow for s390x — IBM ships official TF wheels for LinuxONE. The
-     existing .h5 model loads and runs on s390x without any modification.
-     Reference: https://developer.ibm.com/learningpaths/get-started-with-ai-on-ibm-z/
+  1. Native s390x inference — TensorFlow has no s390x wheels on PyPI, so
+     app/model_loader.py runs the existing .h5 model in pure NumPy (identical
+     outputs to Keras); no conversion or TensorFlow install is needed.
 
   2. Telum AI acceleration (IBM Integrated Accelerator for AI) — Available on
      IBM z16 (machine type 3931) and IBM LinuxONE Emperor 4 (3932). Workloads
@@ -53,10 +53,11 @@ _IBMZ_MACHINE_TYPES = {
     "8562": "z15 T02",
     "3931": "z16 / LinuxONE Emperor 4",  # Telum AI chip
     "3932": "z16 A02 / LinuxONE Emperor 4",  # Telum AI chip
+    "9175": "z17",  # Telum II AI chip
 }
 
 # Machine types that include the IBM Integrated Accelerator for AI (Telum)
-_TELUM_MACHINE_TYPES = {"3931", "3932"}
+_TELUM_MACHINE_TYPES = {"3931", "3932", "9175"}
 
 
 def _read_cpuinfo() -> str:
@@ -93,12 +94,13 @@ def detect_ibmz() -> Dict[str, Any]:
         "machine_name": machine_name,
         "telum_ai": telum_ai,
         "integration_notes": (
-            "Running on IBM Z. TensorFlow s390x is the active runtime. "
+            "Running on IBM Z. The LUCID CNN runs natively on s390x via the NumPy backend "
+            "(no TensorFlow needed). "
             + ("Telum AI acceleration available via IBM zDNN/ONNX-MLIR pipeline." if telum_ai else
-               "Telum AI acceleration requires z16/LinuxONE Emperor 4 hardware.")
+               "Telum AI acceleration requires z16/z17 or LinuxONE Emperor 4 hardware.")
         ) if on_ibmz else (
             "Not running on IBM Z. Deploy this container on IBM LinuxONE or z16 "
             "to enable hardware AI acceleration via the Telum chip. "
-            "The .h5 model requires no changes — TensorFlow s390x is binary-compatible."
+            "The .h5 model requires no changes — it runs on s390x via the NumPy backend."
         ),
     }

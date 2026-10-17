@@ -1,0 +1,13 @@
+# Slim requirements for low-memory hosting (Render free tier, 512 MB RAM).
+# No TensorFlow: the model runs via TFLite (output/*.tflite, see app/model_loader.py).
+# Versions match the tested local Python 3.12 environment.
+fastapi==0.119.1
+pydantic==2.14.1
+uvicorn[standard]==0.34.3
+python-multipart==0.0.32
+numpy==1.26.4
+h5py==3.16.0
+scikit-learn==1.9.1
+protobuf==5.29.6
+pyshark==0.6
+ai-edge-litert==2.3.0

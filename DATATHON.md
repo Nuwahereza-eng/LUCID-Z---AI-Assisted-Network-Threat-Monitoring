@@ -84,8 +84,20 @@ type (z13 through z16/LinuxONE Emperor 4), and whether the **Telum AI chip** is 
 
 ### Layer 3 — Zero-Modification Container Deployment
 
-The existing `Dockerfile` builds and runs unchanged on IBM LinuxONE. IBM ships
-official TensorFlow wheels for `s390x`. The model file (`.h5`) requires no conversion.
+TensorFlow, TFLite and scikit-learn publish no `s390x` wheels on PyPI, so on IBM Z
+LUCID runs without them: `app/model_loader.py` executes the CNN in pure NumPy straight
+from the `.h5` weights (verified identical to Keras on all 4,530 sample-dataset
+fragments), and `sk_compat.py` replaces the few scikit-learn functions used. The model
+file (`.h5`) requires no conversion.
+
+Native install as a systemd service (Ubuntu, RHEL or SLES — e.g. a LinuxONE Community Cloud VM):
+
+```bash
+git clone https://github.com/Nuwahereza-eng/LUCID-Z---AI-Assisted-Network-Threat-Monitoring.git lucid-ddos
+cd lucid-ddos && bash deploy/linuxone/setup.sh
+```
+
+Or with the multi-arch `Dockerfile`:
 
 ```bash
 # On LinuxONE / IBM Z:

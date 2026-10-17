@@ -14,13 +14,16 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 ARG DEBIAN_FRONTEND=noninteractive
 
 # Install system dependencies:
-#   build-essential + gfortran: required to compile numpy/scipy/scikit-learn on s390x
+#   build-essential + libhdf5-dev: compile numpy/h5py from source on s390x
+#   libopenblas-dev: BLAS/LAPACK for numpy
 #   tshark: required by pyshark for PCAP parsing
 #   ca-certificates: HTTPS
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
        build-essential \
-       gfortran \
+       libhdf5-dev \
+       libopenblas-dev \
+       liblapack-dev \
        tshark \
        ca-certificates \
        pkg-config \
@@ -51,4 +54,5 @@ COPY . /app
 
 EXPOSE 8000
 
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Honor $PORT so hosts like Render / Hugging Face Spaces can set it
+CMD ["sh", "-c", "uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}"]

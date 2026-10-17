@@ -1,24 +1,17 @@
 # Requirements for IBM Z / LinuxONE (s390x)
-# Uses flexible version ranges so pip can resolve wheels that exist for s390x.
-# TensorFlow publishes s390x wheels via the standard PyPI index from v2.9+.
+#
+# TensorFlow, TFLite and scikit-learn publish no s390x wheels on PyPI, so this
+# set avoids them entirely:
+#   - the model runs on pure NumPy (app/model_loader.py, NumpyLucidModel)
+#   - sk_compat.py replaces the few scikit-learn functions LUCID uses
+# numpy/h5py build from source if no wheel exists (needs gcc + libhdf5-dev),
+# or use distro packages (python3-numpy, python3-h5py) — see deploy/linuxone/setup.sh.
 
-# Web framework
-fastapi>=0.95.2,<0.120.0
-pydantic>=1.10.0,<2.0.0
-uvicorn[standard]>=0.22.0,<0.35.0
+fastapi>=0.110.0,<0.120.0
+pydantic>=2.0.0,<3.0.0
+uvicorn>=0.29.0,<0.35.0
+websockets>=12.0
 python-multipart>=0.0.9
-
-# Numerics — flexible upper bound, s390x wheels exist for these ranges
-numpy>=1.23.5,<2.0.0
-h5py>=3.8.0,<4.0.0
-scikit-learn>=1.2.2,<2.0.0
-
-# Protobuf — TF requires <4 on older builds
-protobuf>=3.19.6,<4.0.0
-
-# Packet capture
+numpy>=1.26.0,<2.0.0
+h5py>=3.10.0,<4.0.0
 pyshark>=0.6
-
-# TensorFlow — IBM publishes s390x wheels for 2.9+
-# pip will pick the newest compatible wheel available for s390x
-tensorflow>=2.9.0,<2.16.0
