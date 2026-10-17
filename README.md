@@ -12,7 +12,7 @@ R. Doriguzzi-Corin, S. Millar, S. Scott-Hayward, J. Martínez-del-Rincón and D.
 
 ## Installation
 
-The current LUCID's CNN is implemented in Python v3.9 with Keras and Tensorflow 2, while the traffic pre-processing tool is implemented in Python v3.9, Numpy and Pyshark. The original version, implemented with Tensorflow 1.13.1 and evaluated in the aforementioned paper, is available in branch *lucid-tensorflow-1.13.1*.
+The current LUCID's CNN is implemented in Python v3.9 with Keras and Tensorflow 2, while the traffic pre-processing tool is implemented in Python v3.9, Numpy and Pyshark.
 
 LUCID requires the installation of a number of Python tools and libraries. This can be done by using the ```conda``` software environment (https://docs.conda.io/projects/conda/en/latest/).
 We suggest the installation of ```miniconda```, a light version of ```conda```. ```miniconda``` is available for MS Windows, MacOSX and Linux and can be installed by following the guidelines available at https://docs.conda.io/en/latest/miniconda.html#. 
@@ -481,21 +481,3 @@ Exit code 0 = success (samples observed). Non‑zero = failure or timeout.
 8. Deployment: Native vs Docker, interpreter matching, tshark requirement.
 9. Extensions: Real packet filtering, persistence, retraining pipeline.
 10. Demo flow: Start benign PCAP → observe baseline → start attack PCAP → watch fraction rise & mitigation actions.
-
-Use this list as a live walkthrough script.
-
-
-
-## Acknowledgements
-
-If you are using LUCID's code for scientific research, please cite the related paper in your manuscript as follows:
-
-*R. Doriguzzi-Corin, S. Millar, S. Scott-Hayward, J. Martínez-del-Rincón and D. Siracusa, "Lucid: A Practical, Lightweight Deep Learning Solution for DDoS Attack Detection," in IEEE Transactions on Network and Service Management, vol. 17, no. 2, pp. 876-889, June 2020, doi: 10.1109/TNSM.2020.2971776.*
-
-
-
-This work has been partially funded by the European Union’s Horizon 2020 Research and Innovation Programme under grant agreements no. 815141 (DECENTER project), 830929 (CyberSec4Europe project) and n. 833685 (SPIDER project).
-
-## License
-
-The code is released under the Apache License, Version 2.0.
