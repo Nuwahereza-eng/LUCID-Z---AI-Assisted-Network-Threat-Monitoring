@@ -857,6 +857,28 @@
             Stop
           </button>
         </div>
+        <!-- Quick-start presets -->
+        <div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--border);">
+          <div style="font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin-bottom:8px;">Quick Start — Sample PCAPs</div>
+          <div style="display:flex;flex-wrap:wrap;gap:8px;">
+            <button class="btn btn-secondary" type="button" onclick="quickStart('sample-dataset/CIC-DDoS-2019-SynFlood.pcap','all_attack')" title="SYN Flood attack traffic">
+              ⚡ SynFlood
+            </button>
+            <button class="btn btn-secondary" type="button" onclick="quickStart('sample-dataset/CIC-DDoS-2019-UDPLag.pcap','all_attack')" title="UDP Lag attack traffic">
+              ⚡ UDPLag
+            </button>
+            <button class="btn btn-secondary" type="button" onclick="quickStart('sample-dataset/CIC-DDoS-2019-DNS.pcap','all_attack')" title="DNS amplification attack">
+              ⚡ DNS
+            </button>
+            <button class="btn btn-secondary" type="button" onclick="quickStart('sample-dataset/CIC-DDoS-2019-WebDDoS.pcap','all_attack')" title="Web DDoS attack">
+              ⚡ WebDDoS
+            </button>
+            <button class="btn btn-secondary" type="button" onclick="quickStart('sample-dataset/CIC-DDoS-2019-Benign.pcap','all_benign')" title="Benign baseline traffic">
+              ✓ Benign
+            </button>
+          </div>
+          <div style="font-size:11px;color:var(--muted);margin-top:6px;">Clicking a preset fills all fields and starts monitoring immediately.</div>
+        </div>
         <div id="ingestHint" class="hint">External mode — POST fragments to <code>/api/ingest</code> while running.</div>
         <div id="ingestTest" class="card" style="margin-top:0;">
           <div class="card-title">Manual Ingest Test</div>
@@ -1503,6 +1525,12 @@ function setTrafficFilter(f, btn) {
 
 // ── Overview metric card accumulators ────────────────────────────────
 let cumSamples = 0, cumPositive = 0, latencySum = 0, latencyCount = 0;
+function resetOverviewMetrics() {
+  cumSamples = 0; cumPositive = 0; latencySum = 0; latencyCount = 0;
+  ['mcTotalFlows','mcBenignFlows','mcDdosFlows','mcAvgLatency','mcTPR'].forEach(id => {
+    const el = document.getElementById(id); if (el) el.textContent = '—';
+  });
+}
 function updateOverviewMetrics() {
   document.getElementById('mcTotalFlows').textContent  = cumSamples.toLocaleString();
   document.getElementById('mcBenignFlows').textContent = (cumSamples - cumPositive).toLocaleString();
@@ -1728,6 +1756,61 @@ if (listPcapsBtn) {
 }
 if (pcapSelect) {
   pcapSelect.addEventListener('change', () => { sourceEl.value = pcapSelect.value || ''; });
+}
+
+// ── Quick Start presets ───────────────────────────────────────────────
+async function quickStart(pcapPath, gtOverride) {
+  // Stop any running session first
+  try { await fetch('/api/stop', { method: 'POST', headers: { ...authHeaders() } }); } catch {}
+  // Reset accumulators so new run starts clean
+  resetOverviewMetrics();
+  // Clear alert log
+  if (alertList) alertList.innerHTML = '';
+  if (alertListEmpty) alertListEmpty.style.display = '';
+  if (alertBanner) alertBanner.classList.add('hidden');
+  // Fill the form
+  sourceKindEl.value = 'pcap';
+  updateSourceUI();
+  sourceEl.value = pcapPath;
+  document.getElementById('datasetType').value = 'DOS2019';
+  document.getElementById('gtOverride').value = gtOverride;
+  document.getElementById('threshold').value = '0.5';
+  document.getElementById('thresholdDisplay').textContent = '0.50';
+  document.getElementById('thresholdBadge').textContent = '0.50';
+  // Switch to Threat Detection page so user sees the form populated
+  showPage('detection');
+  // Small delay so UI updates before the API call
+  await new Promise(r => setTimeout(r, 100));
+  // Start
+  const body = {
+    source: pcapPath,
+    source_kind: 'pcap',
+    dataset_type: 'DOS2019',
+    threshold: 0.5,
+    ground_truth_override: gtOverride,
+    pcap_realtime: document.getElementById('pcapRealtime')?.checked ?? true,
+    pcap_loop: false,
+  };
+  const res = await fetch('/api/start', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    let msg = '';
+    try { const d = await res.json(); msg = d.detail || JSON.stringify(d); } catch { msg = await res.text(); }
+    alert(`Start failed (${res.status}): ${msg}`);
+    return;
+  }
+  try { await fetchHistoryAndPopulate(); } catch {}
+  try {
+    if (!ws || ws.readyState !== 1) {
+      try { if (ws) ws.close(); } catch {}
+      ws = new WebSocket(getWsUrl());
+      ws.onmessage = (evt) => { try { handleWsMessage(JSON.parse(evt.data)); } catch (e) { console.error(e); } };
+    }
+  } catch {}
+  refreshStatus();
 }
 
 // ── Start ─────────────────────────────────────────────────────────────
