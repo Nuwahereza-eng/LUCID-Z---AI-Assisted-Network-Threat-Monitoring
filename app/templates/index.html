@@ -1732,8 +1732,18 @@ if (pcapSelect) {
 
 // ── Start ─────────────────────────────────────────────────────────────
 document.getElementById('startBtn').onclick = async () => {
+  // Guard: source must not be empty for iface/pcap modes
+  const sourceVal = sourceEl.value.trim();
+  if (sourceKindEl.value !== 'http' && !sourceVal) {
+    const hint = sourceKindEl.value === 'pcap'
+      ? 'Enter a PCAP path, e.g. sample-dataset/CIC-DDoS-2019-SynFlood.pcap'
+      : 'Enter a network interface name, e.g. eth0';
+    alert('Source is required. ' + hint);
+    sourceEl.focus();
+    return;
+  }
   const body = {
-    source:                 sourceEl.value.trim() || (sourceKindEl.value === 'http' ? 'external' : ''),
+    source:                 sourceVal || 'external',
     model_path:             document.getElementById('model').value.trim(),
     dataset_type:           (document.getElementById('datasetType').value || '').trim() || null,
     attack_net:             (document.getElementById('attackNet').value || '').trim() || null,
