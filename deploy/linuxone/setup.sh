@@ -5,11 +5,17 @@
 #   git clone https://github.com/Nuwahereza-eng/LUCID-Z---AI-Assisted-Network-Threat-Monitoring.git lucid-ddos
 #   cd lucid-ddos && bash deploy/linuxone/setup.sh
 #
+# Private by default: the dashboard listens on 127.0.0.1 only and no firewall
+# ports are opened. View it from your own machine through an SSH tunnel:
+#   ssh -i key.pem -L 8000:127.0.0.1:8000 <user>@<server-ip>   then open http://localhost:8000
+# PUBLIC=1 bash deploy/linuxone/setup.sh  exposes it on the server's IP (no login — use with care)
 # Custom port:  PORT=8080 bash deploy/linuxone/setup.sh
 set -euo pipefail
 
 APP_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 PORT="${PORT:-8000}"
+PUBLIC="${PUBLIC:-0}"
+HOST=127.0.0.1; [ "$PUBLIC" = "1" ] && HOST=0.0.0.0
 RUN_USER="$(id -un)"
 SUDO=""; [ "$(id -u)" -ne 0 ] && SUDO="sudo"
 
@@ -76,7 +82,7 @@ After=network-online.target
 [Service]
 User=$RUN_USER
 WorkingDirectory=$APP_DIR
-ExecStart=$APP_DIR/.venv/bin/uvicorn app.main:app --host 0.0.0.0 --port $PORT
+ExecStart=$APP_DIR/.venv/bin/uvicorn app.main:app --host $HOST --port $PORT
 Restart=on-failure
 
 [Install]
@@ -86,18 +92,26 @@ $SUDO systemctl daemon-reload
 $SUDO systemctl enable --now lucid-ddos
 $SUDO systemctl restart lucid-ddos
 
-echo "==> Opening port $PORT in the firewall (if one is active)"
-if command -v firewall-cmd >/dev/null && $SUDO firewall-cmd --state >/dev/null 2>&1; then
-  $SUDO firewall-cmd --permanent --add-port="$PORT/tcp" && $SUDO firewall-cmd --reload
-elif command -v ufw >/dev/null && $SUDO ufw status | grep -q "Status: active"; then
-  $SUDO ufw allow "$PORT/tcp"
+if [ "$PUBLIC" = "1" ]; then
+  echo "==> PUBLIC=1: opening port $PORT in the firewall (if one is active)"
+  if command -v firewall-cmd >/dev/null && $SUDO firewall-cmd --state >/dev/null 2>&1; then
+    $SUDO firewall-cmd --permanent --add-port="$PORT/tcp" && $SUDO firewall-cmd --reload
+  elif command -v ufw >/dev/null && $SUDO ufw status | grep -q "Status: active"; then
+    $SUDO ufw allow "$PORT/tcp"
+  fi
 fi
 
 sleep 3
 if curl -fsS -o /dev/null "http://127.0.0.1:$PORT/" || curl -sS -o /dev/null -w '%{http_code}' "http://127.0.0.1:$PORT/" | grep -q 30; then
-  IP="$(curl -fsS --max-time 5 https://ifconfig.me 2>/dev/null || hostname -I | awk '{print $1}')"
   echo
-  echo "LUCID-DDoS is running:  http://$IP:$PORT"
+  if [ "$PUBLIC" = "1" ]; then
+    echo "LUCID-DDoS is running publicly:  http://$(hostname -I | awk '{print $1}'):$PORT"
+  else
+    echo "LUCID-DDoS is running privately on 127.0.0.1:$PORT (not reachable from the internet)."
+    echo "From your own computer run:"
+    echo "  ssh -i <key.pem> -L $PORT:127.0.0.1:$PORT $RUN_USER@<server-ip>"
+    echo "then open http://localhost:$PORT"
+  fi
   echo "Logs:    sudo journalctl -u lucid-ddos -f"
   echo "Restart: sudo systemctl restart lucid-ddos"
 else
