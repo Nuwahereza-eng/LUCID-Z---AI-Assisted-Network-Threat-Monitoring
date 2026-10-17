@@ -169,9 +169,14 @@
             <tr><td class="muted" style="padding:3px 8px 3px 0;">On IBM Z</td><td id="ibmzOn">—</td></tr>
             <tr><td class="muted" style="padding:3px 8px 3px 0;">Machine</td><td id="ibmzMachine">—</td></tr>
             <tr><td class="muted" style="padding:3px 8px 3px 0;">Telum AI</td><td id="ibmzTelum">—</td></tr>
+            <tr><td class="muted" style="padding:3px 8px 3px 0; white-space:nowrap;">z/OS ML Scoring</td><td id="ibmzmlStatus">—</td></tr>
+            <tr><td class="muted" style="padding:3px 8px 3px 0;">Active Engine</td>
+              <td><span id="engineBadge" style="background:#6b7280;color:#fff;border-radius:999px;font-size:.82em;padding:2px 9px;font-weight:600;">local TF</span></td>
+            </tr>
           </tbody>
         </table>
         <p id="ibmzNote" class="muted" style="font-size:.88em; margin-top:10px; line-height:1.5;"></p>
+        <p id="ibmzmlNote" class="muted" style="font-size:.85em; margin-top:6px; line-height:1.5;"></p>
       </div>
     </section>
     <!-- Controls Panel -->
@@ -393,9 +398,10 @@
         // Model info + IBM Z panel population
         async function loadModelInfo() {
             try {
-                const [miRes, ibmzRes] = await Promise.all([
+                const [miRes, ibmzRes, zosRes] = await Promise.all([
                     fetch('/api/model_info', { headers: { ...authHeaders() } }),
                     fetch('/api/ibmz/status'),
+                    fetch('/api/zos/health'),
                 ]);
                 if (miRes.ok) {
                     const mi = await miRes.json();
@@ -433,10 +439,40 @@
                         if (t) t.style.display = '';
                     }
                 }
+                if (zosRes.ok) {
+                    const zos = await zosRes.json();
+                    const statusEl = document.getElementById('ibmzmlStatus');
+                    const noteEl = document.getElementById('ibmzmlNote');
+                    if (statusEl) {
+                        if (zos.configured && zos.reachable) {
+                            statusEl.innerHTML = '<span style="color:#16a34a;font-weight:600;">✅ Connected</span>';
+                        } else if (zos.configured && !zos.reachable) {
+                            statusEl.innerHTML = '<span style="color:#f59e0b;font-weight:600;">⚠ Configured, unreachable</span>';
+                        } else {
+                            statusEl.innerHTML = '<span style="color:#6b7280;">Not configured</span>';
+                        }
+                    }
+                    if (noteEl) noteEl.textContent = zos.message || '';
+                    // Set initial engine badge
+                    setEngineBadge(zos.configured && zos.reachable ? 'ibmzml' : 'local');
+                }
             } catch (e) {
                 // Non-critical — panel remains with placeholders
             }
         }
+
+        function setEngineBadge(engine) {
+            const b = document.getElementById('engineBadge');
+            if (!b) return;
+            if (engine === 'ibmzml') {
+                b.textContent = 'IBM z/OS ML';
+                b.style.background = '#1d4ed8';
+            } else {
+                b.textContent = 'local TF';
+                b.style.background = '#6b7280';
+            }
+        }
+
         loadModelInfo();
 
         const logoutBtn = document.getElementById('logoutBtn');
@@ -600,12 +636,15 @@
                 }
             } catch {}
 
-            // Live latency update in model info panel
+            // Live latency + engine badge update in model info panel
             try {
                 if (typeof m?.latency_sec === 'number' && typeof m?.samples === 'number' && m.samples > 0) {
                     const msPerSample = (m.latency_sec * 1000 / m.samples).toFixed(3);
+                    const engine = m?.scoring_engine || 'local';
+                    const engineLabel = engine === 'ibmzml' ? 'IBM z/OS ML' : 'local TF';
                     const latEl = document.getElementById('miLatency');
-                    if (latEl) latEl.textContent = `${msPerSample} ms/sample (${m.samples} samples, live)`;
+                    if (latEl) latEl.textContent = `${msPerSample} ms/sample (${m.samples} samples, ${engineLabel})`;
+                    setEngineBadge(engine);
                 }
             } catch {}
 

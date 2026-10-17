@@ -29,6 +29,7 @@ from sklearn.metrics import accuracy_score, f1_score, confusion_matrix
 from util_functions import static_min_max, normalize_and_padding, count_packets_in_dataset
 from lucid_dataset_parser import process_live_traffic, parse_labels, dataset_to_list_of_fragments
 from app.ibmz import detect_ibmz
+from app.ibmzml import zml_client
 
 
 class StartConfig(BaseModel):
@@ -597,9 +598,26 @@ class DetectorService:
                         continue
                     X = np.expand_dims(X, axis=3)
 
+                # --- Scoring engine: IBM ML for z/OS (preferred) or local TF ---
+                scoring_engine = "local"
+                zml_result = None
+                if zml_client.configured:
+                    try:
+                        # Flatten each fragment from (max_flow_len, 11, 1) → 1-D list for z/OS ML
+                        X_flat = [X[i].flatten().tolist() for i in range(X.shape[0])]
+                        zml_result = zml_client.score(X_flat)
+                    except Exception as _zml_err:
+                        logger.warning(f"z/OS ML scoring error, falling back to local: {_zml_err}")
+
                 t0 = time.time()
-                y_pred = np.squeeze(self.model.predict(X, batch_size=2048) > 0.5, axis=1)
-                latency = time.time() - t0
+                if zml_result is not None:
+                    y_pred = np.array(zml_result["predictions"], dtype=bool)
+                    latency = zml_result["latency_sec"]
+                    scoring_engine = "ibmzml"
+                else:
+                    y_pred = np.squeeze(self.model.predict(X, batch_size=2048) > 0.5, axis=1)
+                    latency = time.time() - t0
+                # -----------------------------------------------------------------
                 if self._source_kind == "http":
                     packets = external_packets
                 else:
@@ -736,6 +754,7 @@ class DetectorService:
                     "positive_count": pos_count,
                     "ddos_fraction": ddos_fraction,
                     "latency_sec": latency,
+                    "scoring_engine": scoring_engine,
                     "metrics": metrics,
                     "alert": alert,
                     "threshold": self.threshold,
@@ -1553,3 +1572,115 @@ async def predict_file(file: UploadFile = File(...)):
         }
 
     return result
+
+
+# ---------------------------------------------------------------------------
+# /api/zos/* — IBM Machine Learning for z/OS integration endpoints
+# ---------------------------------------------------------------------------
+
+class ZOSScoreRequest(BaseModel):
+    """Direct scoring request routed through IBM ML for z/OS."""
+    fragments: List[List[List[float]]]
+    labels: Optional[List[int]] = None
+    time_window: Optional[int] = None
+
+
+@app.post("/api/zos/score")
+def zos_score(req: ZOSScoreRequest):
+    """Score a batch of fragments through IBM ML for z/OS.
+
+    When IBMZML_SCORING_URL is configured, fragments are sent to the z/OS
+    scoring endpoint and results are returned with full classification metrics.
+    If the endpoint is unavailable the call falls back to local TF inference
+    automatically, so callers never need to handle both cases.
+
+    This endpoint is the concrete implementation of Transactional AI on IBM Z:
+    the same API call that a CICS transaction or Db2 stored procedure would make
+    to get a real-time DDoS risk score during live transaction processing.
+    """
+    # Ensure a model is loaded for local fallback
+    if service.model is None:
+        path = service._autodiscover_model_path()
+        if not path and not zml_client.configured:
+            raise HTTPException(status_code=503, detail="No model and no z/OS ML endpoint configured.")
+        if path and service.model is None:
+            try:
+                service.model = load_model(path)
+            except Exception as e:
+                if not zml_client.configured:
+                    raise HTTPException(status_code=500, detail=f"Failed to load local model: {e}")
+
+    tw = req.time_window or service.time_window or 10
+    mfl = service.max_flow_len or 10
+    mins, maxs = static_min_max(tw)
+
+    fragments = [np.array(f) for f in req.fragments]
+    X_list = normalize_and_padding(fragments, mins, maxs, mfl)
+    if not X_list:
+        raise HTTPException(status_code=400, detail="No valid fragments after normalization.")
+    X = np.array(X_list)
+    if X.ndim < 3:
+        raise HTTPException(status_code=400, detail="Fragment array has unexpected shape.")
+    X = np.expand_dims(X, axis=3)
+
+    # Try z/OS ML first
+    scoring_engine = "local"
+    y_pred_list = None
+    latency_sec = None
+
+    if zml_client.configured:
+        X_flat = [X[i].flatten().tolist() for i in range(X.shape[0])]
+        zml_result = zml_client.score(X_flat)
+        if zml_result is not None:
+            y_pred_list = zml_result["predictions"]
+            latency_sec = zml_result["latency_sec"]
+            scoring_engine = "ibmzml"
+
+    if y_pred_list is None:
+        if service.model is None:
+            raise HTTPException(status_code=503, detail="z/OS ML unreachable and no local model loaded.")
+        t0 = time.time()
+        raw = service.model.predict(X, batch_size=2048)
+        latency_sec = time.time() - t0
+        y_pred_list = (np.squeeze(raw, axis=1) > 0.5).astype(int).tolist()
+
+    n = len(y_pred_list)
+    pos = sum(y_pred_list)
+    result: Dict[str, Any] = {
+        "samples": n,
+        "positive_count": int(pos),
+        "ddos_fraction": round(pos / n, 6) if n > 0 else 0.0,
+        "latency_sec": round(latency_sec, 6),
+        "latency_ms_per_sample": round(latency_sec * 1000 / n, 4) if n > 0 else None,
+        "scoring_engine": scoring_engine,
+        "predictions": y_pred_list,
+    }
+
+    if req.labels is not None:
+        if len(req.labels) != n:
+            raise HTTPException(status_code=400, detail="labels length must match fragments length.")
+        y_true = np.array(req.labels)
+        y_pred_np = np.array(y_pred_list)
+        acc = float(accuracy_score(y_true, y_pred_np))
+        f1 = float(f1_score(y_true, y_pred_np, zero_division=0))
+        cm = confusion_matrix(y_true, y_pred_np, labels=[0, 1])
+        tn, fp, fn, tp = cm.ravel() if cm.size == 4 else (0, 0, 0, 0)
+        result["classification_metrics"] = {
+            "accuracy": round(acc, 6),
+            "f1": round(f1, 6),
+            "tp": int(tp), "fp": int(fp), "tn": int(tn), "fn": int(fn),
+            "tpr": round(tp / (tp + fn), 6) if (tp + fn) > 0 else None,
+            "fpr": round(fp / (fp + tn), 6) if (fp + tn) > 0 else None,
+        }
+
+    return result
+
+
+@app.get("/api/zos/health")
+def zos_health():
+    """Check IBM ML for z/OS connectivity and configuration status.
+
+    Returns whether IBMZML_SCORING_URL is set, whether the endpoint is
+    reachable, and a human-readable message suitable for dashboard display.
+    """
+    return zml_client.health()
