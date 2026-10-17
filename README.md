@@ -242,8 +242,7 @@ Of course, the above dictionary can be changed to meet the address scheme of the
 python3 lucid_cnn.py --predict_live eth0 --model ./output/10t-10n-DOS2019-LUCID.h5 --attack_net 11.0.0.0/24 --victim_net 10.42.0.0/24
 ```
 
-Once LUCID has been started on the victim machine using one of the two examples above, we can start the attack from another host machine using one of the following scripts based on the ```mausezahn``` tool (https://github.com/uweber/mausezahn):
-
+Once LUCID has been started on the victim machine using one of the two examples above, we can start the attack from another host machine.
 ```
 sudo mz eth0 -A  11.0.0.0/24 -B 10.42.0.2 -t tcp " dp=80,sp=1024-60000,flags=syn"
 ```
