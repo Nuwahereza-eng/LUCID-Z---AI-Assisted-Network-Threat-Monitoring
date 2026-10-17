@@ -23,7 +23,7 @@ if REPO_ROOT not in sys.path:
 
 import numpy as np
 import pyshark
-from tensorflow.keras.models import load_model
+from app.model_loader import load_model
 from sklearn.metrics import accuracy_score, f1_score, confusion_matrix
 
 from util_functions import static_min_max, normalize_and_padding, count_packets_in_dataset

@@ -441,9 +441,46 @@
     }
     .btn:disabled { opacity: .5; cursor: not-allowed; }
     .btn-primary  { background: var(--cyan);   color: var(--bg); }
-    .btn-primary:hover { background: #67e8f9; }
+    .btn-primary:hover:not(:disabled) { background: #67e8f9; }
     .btn-danger   { background: var(--danger); color: #fff; }
-    .btn-danger:hover { background: #f87171; }
+    .btn-danger:hover:not(:disabled) { background: #f87171; }
+
+    /* Start / Stop active state styles */
+    #startBtn.is-running {
+      background: transparent;
+      color: var(--success);
+      border: 1.5px solid var(--success);
+      box-shadow: 0 0 0 3px rgba(34,197,94,.15);
+      cursor: not-allowed;
+      opacity: .75;
+    }
+    #startBtn.is-idle {
+      background: var(--cyan);
+      color: var(--bg);
+      border: none;
+      box-shadow: none;
+      opacity: 1;
+      cursor: pointer;
+    }
+    #stopBtn.is-idle {
+      background: transparent;
+      color: var(--muted);
+      border: 1.5px solid var(--border);
+      cursor: not-allowed;
+      opacity: .45;
+    }
+    #stopBtn.is-running {
+      background: var(--danger);
+      color: #fff;
+      border: none;
+      opacity: 1;
+      cursor: pointer;
+      animation: pulseBtn 1.8s ease-in-out infinite;
+    }
+    @keyframes pulseBtn {
+      0%,100% { box-shadow: 0 0 0 0 rgba(239,68,68,.5); }
+      50%      { box-shadow: 0 0 0 6px rgba(239,68,68,.0); }
+    }
     .btn-secondary {
       background: transparent;
       color: var(--muted);
@@ -1240,6 +1277,24 @@ function stampUpdated() {
 }
 
 // ── Status refresh ───────────────────────────────────────────────────
+function updateButtonStates(status) {
+  const startBtn = document.getElementById('startBtn');
+  const stopBtn  = document.getElementById('stopBtn');
+  if (!startBtn || !stopBtn) return;
+
+  const isRunning = status === 'running';
+
+  // Start button — dim + outline when already running
+  startBtn.classList.toggle('is-running', isRunning);
+  startBtn.classList.toggle('is-idle',    !isRunning);
+  startBtn.disabled = isRunning;
+
+  // Stop button — dim when nothing to stop, pulse red when running
+  stopBtn.classList.toggle('is-running', isRunning);
+  stopBtn.classList.toggle('is-idle',    !isRunning);
+  stopBtn.disabled = !isRunning;
+}
+
 async function refreshStatus() {
   try {
     const res = await fetch('/api/status', { headers: { ...authHeaders() } });
@@ -1249,6 +1304,7 @@ async function refreshStatus() {
     statusPill.textContent = st.charAt(0).toUpperCase() + st.slice(1);
     statusPill.className = '';
     statusPill.classList.add(st);
+    updateButtonStates(st);
 
     const errEl = document.getElementById('statusError');
     if (data.last_error) {

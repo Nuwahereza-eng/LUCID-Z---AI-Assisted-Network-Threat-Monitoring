@@ -5,4 +5,4 @@ services:
     plan: free
     autoDeploy: true
     healthCheckPath: /
-    dockerfilePath: Dockerfile
+    dockerfilePath: Dockerfile.render
