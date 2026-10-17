@@ -12,3 +12,10 @@ venv/
 # Editor
 *.code-workspace
 .vscode/
+
+# Environment variables — never commit secrets
+.env
+*.env
+.env.*
+ddos.pem
+*.pem
