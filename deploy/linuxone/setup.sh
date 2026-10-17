@@ -82,7 +82,9 @@ After=network-online.target
 [Service]
 User=$RUN_USER
 WorkingDirectory=$APP_DIR
-ExecStart=$APP_DIR/.venv/bin/uvicorn app.main:app --host $HOST --port $PORT
+# python -m (not the .venv/bin/uvicorn script): the venv python links to /usr/bin, which
+# SELinux on RHEL allows systemd to execute; scripts under /home fail with 203/EXEC
+ExecStart=$APP_DIR/.venv/bin/python -m uvicorn app.main:app --host $HOST --port $PORT
 Restart=on-failure
 
 [Install]
@@ -101,8 +103,15 @@ if [ "$PUBLIC" = "1" ]; then
   fi
 fi
 
-sleep 3
-if curl -fsS -o /dev/null "http://127.0.0.1:$PORT/" || curl -sS -o /dev/null -w '%{http_code}' "http://127.0.0.1:$PORT/" | grep -q 30; then
+echo "==> Waiting for the dashboard to start (up to 90 s)"
+UP=0
+for _ in $(seq 1 45); do
+  if curl -s -o /dev/null "http://127.0.0.1:$PORT/"; then UP=1; break; fi
+  # stop waiting early if systemd has already given up on the service
+  $SUDO systemctl is-failed --quiet lucid-ddos && break
+  sleep 2
+done
+if [ "$UP" = "1" ]; then
   echo
   if [ "$PUBLIC" = "1" ]; then
     echo "LUCID-DDoS is running publicly:  http://$(hostname -I | awk '{print $1}'):$PORT"
@@ -115,6 +124,8 @@ if curl -fsS -o /dev/null "http://127.0.0.1:$PORT/" || curl -sS -o /dev/null -w 
   echo "Logs:    sudo journalctl -u lucid-ddos -f"
   echo "Restart: sudo systemctl restart lucid-ddos"
 else
-  echo "Service did not respond — check: sudo journalctl -u lucid-ddos -n 50" >&2
+  echo "Service did not respond. Status and recent logs:" >&2
+  $SUDO systemctl status lucid-ddos --no-pager -l >&2 || true
+  $SUDO journalctl -u lucid-ddos -n 40 --no-pager >&2 || true
   exit 1
 fi
