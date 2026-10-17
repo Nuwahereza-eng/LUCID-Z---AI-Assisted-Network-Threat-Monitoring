@@ -1031,6 +1031,33 @@
   <!-- ── Page: Settings ──────────────────────────────────────────── -->
   <section class="page" id="page-settings">
     <div class="two-col" style="margin-bottom:0;">
+      <!-- Sound alerts -->
+      <div class="card">
+        <div class="section-title">Sound Alerts</div>
+        <div class="form-grid">
+          <div class="form-row">
+            <label>Alert sound</label>
+            <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+              <input type="checkbox" id="soundEnabled" checked
+                onchange="setSoundEnabled(this.checked)">
+              <span>Play sound on DDoS detection</span>
+            </label>
+          </div>
+          <div class="form-row">
+            <label>Sound type</label>
+            <select id="soundType" onchange="localStorage.setItem('lucid-sound-type',this.value)" style="width:180px;">
+              <option value="alert">Alert tone (urgent)</option>
+              <option value="blip">Blip (subtle)</option>
+              <option value="siren">Siren sweep</option>
+            </select>
+          </div>
+          <div class="btn-group">
+            <button class="btn btn-secondary" type="button" onclick="playAlertSound(true)">▶ Test Sound</button>
+          </div>
+          <p class="hint">Sound plays once per confirmed alert window. Browser must allow audio (click anywhere first if sound doesn't play).</p>
+        </div>
+      </div>
+
       <!-- Auth / token -->
       <div class="card">
         <div class="section-title">Authentication</div>
@@ -1625,7 +1652,10 @@ function handleWsMessage(m) {
   if (m.alert || m?.forecast?.predicted_alert) {
     alertBanner.classList.remove('hidden');
     pushAlertItem(m);
-    if (m.alert) pushRecentAlert(m);
+    if (m.alert) {
+      pushRecentAlert(m);
+      playAlertSound(); // 🔊 sound on confirmed DDoS alert
+    }
   } else {
     alertBanner.classList.add('hidden');
   }
@@ -1931,6 +1961,84 @@ if (sendDemoBtn) {
 }
 
 console.log('LUCID-Z UI v2026.datathon — cybersecurity command center');
+
+// ── Sound Alert Engine (Web Audio API — no CDN required) ──────────────
+const _audioCtx = () => {
+  if (!window._lucidAudioCtx) {
+    try { window._lucidAudioCtx = new (window.AudioContext || window.webkitAudioContext)(); }
+    catch { window._lucidAudioCtx = null; }
+  }
+  return window._lucidAudioCtx;
+};
+
+function playAlertSound(force = false) {
+  const enabled = document.getElementById('soundEnabled')?.checked ?? true;
+  if (!force && !enabled) return;
+  const ctx = _audioCtx();
+  if (!ctx) return;
+  // Resume if suspended (browsers require user gesture first)
+  if (ctx.state === 'suspended') ctx.resume();
+
+  const type = document.getElementById('soundType')?.value || 'alert';
+  const now = ctx.currentTime;
+
+  if (type === 'blip') {
+    // Single short blip — subtle
+    const o = ctx.createOscillator();
+    const g = ctx.createGain();
+    o.connect(g); g.connect(ctx.destination);
+    o.type = 'sine'; o.frequency.setValueAtTime(880, now);
+    g.gain.setValueAtTime(0.4, now);
+    g.gain.exponentialRampToValueAtTime(0.001, now + 0.18);
+    o.start(now); o.stop(now + 0.18);
+
+  } else if (type === 'siren') {
+    // Siren sweep up-down
+    const o = ctx.createOscillator();
+    const g = ctx.createGain();
+    o.connect(g); g.connect(ctx.destination);
+    o.type = 'sawtooth';
+    o.frequency.setValueAtTime(400, now);
+    o.frequency.linearRampToValueAtTime(900, now + 0.3);
+    o.frequency.linearRampToValueAtTime(400, now + 0.6);
+    o.frequency.linearRampToValueAtTime(900, now + 0.9);
+    g.gain.setValueAtTime(0.25, now);
+    g.gain.exponentialRampToValueAtTime(0.001, now + 1.0);
+    o.start(now); o.stop(now + 1.0);
+
+  } else {
+    // 'alert' — two-tone urgent beep
+    [0, 0.22].forEach((delay, i) => {
+      const o = ctx.createOscillator();
+      const g = ctx.createGain();
+      o.connect(g); g.connect(ctx.destination);
+      o.type = 'square';
+      o.frequency.setValueAtTime(i === 0 ? 660 : 880, now + delay);
+      g.gain.setValueAtTime(0.3, now + delay);
+      g.gain.exponentialRampToValueAtTime(0.001, now + delay + 0.18);
+      o.start(now + delay); o.stop(now + delay + 0.18);
+    });
+  }
+}
+
+function setSoundEnabled(val) {
+  localStorage.setItem('lucid-sound-enabled', val ? '1' : '0');
+}
+
+// Restore sound preferences from localStorage
+(function restoreSoundPrefs() {
+  try {
+    const enabled = localStorage.getItem('lucid-sound-enabled');
+    const type    = localStorage.getItem('lucid-sound-type');
+    const cb = document.getElementById('soundEnabled');
+    const sel = document.getElementById('soundType');
+    if (cb && enabled !== null) cb.checked = enabled === '1';
+    if (sel && type) sel.value = type;
+  } catch {}
+})();
+
+// Unlock AudioContext on first user interaction (required by browsers)
+document.addEventListener('click', () => { try { _audioCtx()?.resume(); } catch {} }, { once: true });
 </script>
 </body>
 </html>
