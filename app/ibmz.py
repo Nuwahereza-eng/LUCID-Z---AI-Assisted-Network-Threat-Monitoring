@@ -5,9 +5,9 @@ Detects at runtime whether the service is executing on IBM Z (s390x) hardware
 and exposes that information via /api/ibmz/status.
 
 Genuine IBM Z integration paths (no fabrication):
-  1. TensorFlow for s390x — IBM ships official TF wheels for LinuxONE. The
-     existing .h5 model loads and runs on s390x without any modification.
-     Reference: https://developer.ibm.com/learningpaths/get-started-with-ai-on-ibm-z/
+  1. Native s390x inference — TensorFlow has no s390x wheels on PyPI, so
+     app/model_loader.py runs the existing .h5 model in pure NumPy (identical
+     outputs to Keras); no conversion or TensorFlow install is needed.
 
   2. Telum AI acceleration (IBM Integrated Accelerator for AI) — Available on
      IBM z16 (machine type 3931) and IBM LinuxONE Emperor 4 (3932). Workloads

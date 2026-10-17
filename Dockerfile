@@ -14,14 +14,14 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 ARG DEBIAN_FRONTEND=noninteractive
 
 # Install system dependencies:
-#   build-essential + gfortran: compile numpy/scikit-learn from source on s390x
-#   libopenblas-dev: BLAS/LAPACK required by numpy and scikit-learn
+#   build-essential + libhdf5-dev: compile numpy/h5py from source on s390x
+#   libopenblas-dev: BLAS/LAPACK for numpy
 #   tshark: required by pyshark for PCAP parsing
 #   ca-certificates: HTTPS
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
        build-essential \
-       gfortran \
+       libhdf5-dev \
        libopenblas-dev \
        liblapack-dev \
        tshark \
