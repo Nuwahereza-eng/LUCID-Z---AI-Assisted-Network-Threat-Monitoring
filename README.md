@@ -480,3 +480,9 @@ Exit code 0 = success (samples observed). Non‑zero = failure or timeout.
 8. Deployment: Native vs Docker, interpreter matching, tshark requirement.
 9. Extensions: Real packet filtering, persistence, retraining pipeline.
 10. Demo flow: Start benign PCAP → observe baseline → start attack PCAP → watch fraction rise & mitigation actions.
+## Linux1 Screenshot
+
+The screenshot shows the LUCID-Z service as `active (running)`,
+with application startup completed.
+
+![Linux1 screenshot: LUCID-Z service running](linux1-screenshot.png)
